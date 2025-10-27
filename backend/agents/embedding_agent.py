@@ -3,7 +3,7 @@
 import logging
 import os
 from typing import List, Dict, Any, Optional
-import google as genai
+from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class EmbeddingAgent:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         
-        genai.configure(api_key=self.api_key)
+        self.client = genai.Client(api_key=self.api_key)
         self.model_name = "models/text-embedding-004"
         self.dimension = 768
         self.max_text_length = 10000
@@ -66,13 +66,12 @@ class EmbeddingAgent:
             logger.info(f"Generating JD embedding for: {jd_data.get('job_title', 'Unknown')}")
             
             # Generate embedding
-            result = genai.embed_content(
+            result = self.client.models.embed_content(
                 model=self.model_name,
-                content=prepared_text,
-                task_type="retrieval_document"
+                contents=prepared_text
             )
             
-            embedding = result['embedding']
+            embedding = result.embeddings[0].values
             
             if len(embedding) != self.dimension:
                 logger.error(f"Unexpected embedding dimension: {len(embedding)}")
@@ -113,13 +112,12 @@ class EmbeddingAgent:
             logger.info(f"Generating resume embedding for: {resume_data.get('candidate_name', 'Unknown')}")
             
             # Generate embedding
-            result = genai.embed_content(
+            result = self.client.models.embed_content(
                 model=self.model_name,
-                content=prepared_text,
-                task_type="retrieval_query"
+                contents=prepared_text
             )
             
-            embedding = result['embedding']
+            embedding = result.embeddings[0].values
             
             if len(embedding) != self.dimension:
                 logger.error(f"Unexpected embedding dimension: {len(embedding)}")
@@ -177,13 +175,12 @@ class EmbeddingAgent:
         try:
             prepared_text = self._prepare_text(text)
             
-            result = genai.embed_content(
+            result = self.client.models.embed_content(
                 model=self.model_name,
-                content=prepared_text,
-                task_type=task_type
+                contents=prepared_text
             )
             
-            embedding = result['embedding']
+            embedding = result.embeddings[0].values
             
             if len(embedding) != self.dimension:
                 logger.error(f"Unexpected embedding dimension: {len(embedding)}")

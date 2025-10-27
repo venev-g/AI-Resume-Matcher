@@ -20,8 +20,8 @@ class SkillRecommenderAgent:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        self.client = genai.Client(api_key=self.api_key)
+        self.model_name = "gemini-2.5-flash"
         self.max_retries = 3
         self.max_recommendations = 5
 
@@ -106,7 +106,10 @@ Example format:
             try:
                 logger.info(f"Generating skill recommendations (attempt {attempt + 1}/{self.max_retries})")
                 
-                response = self.model.generate_content(prompt)
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt
+                )
                 
                 if not response or not response.text:
                     logger.warning(f"Empty response from Gemini on attempt {attempt + 1}")
