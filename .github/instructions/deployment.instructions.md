@@ -1,8 +1,5 @@
 ---
-applyTo:
-  - "Dockerfile"
-  - "docker-compose.yml"
-  - ".github/workflows/**/*.yml"
+applyTo: "{Dockerfile,docker-compose.yml,.github/workflows/**/*.yml}"
 ---
 
 # Deployment Configuration Instructions
