@@ -13,15 +13,20 @@ class EmbeddingAgent:
 
     def __init__(self):
         """Initialize Gemini embedding client."""
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not set")
-        
-        self.client = genai.Client(api_key=self.api_key)
+        self.client = self._initialize_client()
+        self.logger = logging.getLogger(__name__)
         self.model_name = "models/text-embedding-004"
         self.dimension = 768
         self.max_text_length = 10000
+
+    def _initialize_client(self):
+        """Setup Gemini client with API key from environment."""
+        api_key = os.getenv("GEMINI_API_KEY")
+        
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set")
+        
+        return genai.Client(api_key=api_key)
 
     def _prepare_text(self, text: str) -> str:
         """
@@ -34,7 +39,7 @@ class EmbeddingAgent:
             Prepared text within length limits
         """
         if len(text) > self.max_text_length:
-            logger.warning(f"Text exceeds max length, truncating from {len(text)} to {self.max_text_length}")
+            self.logger.warning(f"Text exceeds max length, truncating from {len(text)} to {self.max_text_length}")
             return text[:self.max_text_length]
         return text
 
@@ -63,7 +68,7 @@ class EmbeddingAgent:
             combined_text = "\n".join(context_parts)
             prepared_text = self._prepare_text(combined_text)
             
-            logger.info(f"Generating JD embedding for: {jd_data.get('job_title', 'Unknown')}")
+            self.logger.info(f"Generating JD embedding for: {jd_data.get('job_title', 'Unknown')}")
             
             # Generate embedding
             result = self.client.models.embed_content(
@@ -74,14 +79,14 @@ class EmbeddingAgent:
             embedding = result.embeddings[0].values
             
             if len(embedding) != self.dimension:
-                logger.error(f"Unexpected embedding dimension: {len(embedding)}")
+                self.logger.error(f"Unexpected embedding dimension: {len(embedding)}")
                 return None
             
-            logger.info(f"Successfully generated JD embedding (dim={len(embedding)})")
+            self.logger.info(f"Successfully generated JD embedding (dim={len(embedding)})")
             return embedding
             
         except Exception as e:
-            logger.error(f"Error generating JD embedding: {e}")
+            self.logger.error(f"Error generating JD embedding: {e}")
             return None
 
     async def embed_resume(self, resume_data: Dict[str, Any]) -> Optional[List[float]]:

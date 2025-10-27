@@ -13,6 +13,7 @@ class MatchEvaluatorAgent:
 
     def __init__(self):
         """Initialize match evaluator with scoring weights."""
+        self.logger = logging.getLogger(__name__)
         self.skill_weight = 0.40
         self.experience_weight = 0.30
         self.role_weight = 0.30

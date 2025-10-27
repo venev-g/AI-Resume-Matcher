@@ -16,19 +16,23 @@ class ResumeAnalyzerAgent:
 
     def __init__(self):
         """Initialize PDF parser and OpenRouter client."""
-        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-        
-        if not self.openrouter_api_key:
-            raise ValueError("OPENROUTER_API_KEY environment variable not set")
-        
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=self.openrouter_api_key
-        )
-        
+        self.client = self._initialize_client()
+        self.logger = logging.getLogger(__name__)
         self.model = "openai/gpt-4-turbo"
         self.max_retries = 3
         self.max_text_length = 4000
+
+    def _initialize_client(self):
+        """Setup OpenRouter client with API key from environment."""
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY environment variable not set")
+        
+        return OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key
+        )
 
     def _extract_text_from_pdf(self, file_path: str) -> Optional[str]:
         """

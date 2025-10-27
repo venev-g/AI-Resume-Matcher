@@ -1,10 +1,11 @@
 """Skill Recommender Agent using Gemini 2.5 Flash."""
 
+import asyncio
 import json
 import logging
 import os
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from google import genai
 
 logger = logging.getLogger(__name__)
@@ -15,15 +16,20 @@ class SkillRecommenderAgent:
 
     def __init__(self):
         """Initialize Gemini client for skill recommendations."""
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not set")
-        
-        self.client = genai.Client(api_key=self.api_key)
+        self.client = self._initialize_client()
+        self.logger = logging.getLogger(__name__)
         self.model_name = "gemini-2.5-flash"
         self.max_retries = 3
         self.max_recommendations = 5
+
+    def _initialize_client(self):
+        """Setup Gemini client with API key from environment."""
+        api_key = os.getenv("GEMINI_API_KEY")
+        
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set")
+        
+        return genai.Client(api_key=api_key)
 
     def _strip_markdown_json(self, text: str) -> str:
         """
@@ -39,6 +45,44 @@ class SkillRecommenderAgent:
         text = re.sub(r'^```\s*', '', text, flags=re.MULTILINE)
         text = text.strip()
         return text
+
+    async def _call_llm_with_retry(self, prompt: str) -> str:
+        """
+        Call LLM with retry logic and exponential backoff.
+        
+        Args:
+            prompt: The prompt to send to the LLM
+            
+        Returns:
+            Response text
+            
+        Raises:
+            Exception: If all retry attempts fail
+        """
+        for attempt in range(self.max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt
+                )
+                
+                if response and response.text:
+                    return response.text
+                else:
+                    self.logger.warning(f"Empty response from Gemini on attempt {attempt + 1}")
+                    
+            except Exception as e:
+                if "rate" in str(e).lower() or "quota" in str(e).lower():
+                    # Exponential backoff for rate limit errors
+                    await asyncio.sleep(2 ** attempt)
+                    self.logger.warning(f"Rate limit hit, retry {attempt + 1}/{self.max_retries}")
+                else:
+                    if attempt == self.max_retries - 1:
+                        self.logger.error(f"All retry attempts failed: {e}")
+                        raise
+                    self.logger.warning(f"Retry {attempt + 1}/{self.max_retries}: {e}")
+        
+        raise Exception("All retry attempts exhausted")
 
     async def recommend_skills(
         self,
@@ -102,59 +146,53 @@ Example format:
 ]
 """
         
-        for attempt in range(self.max_retries):
-            try:
-                logger.info(f"Generating skill recommendations (attempt {attempt + 1}/{self.max_retries})")
+        try:
+            self.logger.info("Generating skill recommendations")
+            
+            # Call LLM with retry logic
+            response_text = await self._call_llm_with_retry(prompt)
+            
+            # Strip markdown formatting
+            clean_text = self._strip_markdown_json(response_text)
+            
+            # Parse JSON response
+            recommendations = json.loads(clean_text)
+            
+            if not isinstance(recommendations, list):
+                self.logger.warning("Response is not a list")
+                return []
+            
+            # Validate and filter recommendations
+            valid_recommendations = []
+            
+            for rec in recommendations[:self.max_recommendations]:
+                required_fields = [
+                    "missing_skill", "importance", "reason",
+                    "learning_path", "estimated_time"
+                ]
                 
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt
-                )
-                
-                if not response or not response.text:
-                    logger.warning(f"Empty response from Gemini on attempt {attempt + 1}")
-                    continue
-                
-                # Strip markdown formatting
-                clean_text = self._strip_markdown_json(response.text)
-                
-                # Parse JSON response
-                recommendations = json.loads(clean_text)
-                
-                if not isinstance(recommendations, list):
-                    logger.warning(f"Response is not a list on attempt {attempt + 1}")
-                    continue
-                
-                # Validate and filter recommendations
-                valid_recommendations = []
-                
-                for rec in recommendations[:self.max_recommendations]:
-                    required_fields = [
-                        "missing_skill", "importance", "reason",
-                        "learning_path", "estimated_time"
-                    ]
+                if all(field in rec for field in required_fields):
+                    # Validate importance level
+                    if rec["importance"] not in ["high", "medium", "low"]:
+                        rec["importance"] = "medium"
                     
-                    if all(field in rec for field in required_fields):
-                        # Validate importance level
-                        if rec["importance"] not in ["high", "medium", "low"]:
-                            rec["importance"] = "medium"
-                        
-                        valid_recommendations.append(rec)
+                    valid_recommendations.append(rec)
+            
+            if valid_recommendations:
+                self.logger.info(f"Generated {len(valid_recommendations)} skill recommendations")
+                return valid_recommendations
+            else:
+                self.logger.warning("No valid recommendations generated")
+                return []
                 
-                if valid_recommendations:
-                    logger.info(f"Generated {len(valid_recommendations)} skill recommendations")
-                    return valid_recommendations
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON on attempt {attempt + 1}: {e}")
-                logger.error(f"Response text: {response.text if response else 'No response'}")
-                
-            except Exception as e:
-                logger.error(f"Error generating recommendations on attempt {attempt + 1}: {e}")
-        
-        # Return empty list if all attempts fail
-        logger.error("All attempts to generate recommendations failed")
-        return []
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Failed to parse JSON: {e}")
+            self.logger.error(f"Response text: {response_text if 'response_text' in locals() else 'No response'}")
+            return []
+            
+        except Exception as e:
+            self.logger.error(f"Error generating recommendations: {e}")
+            return []
 
     async def recommend_batch(
         self,
