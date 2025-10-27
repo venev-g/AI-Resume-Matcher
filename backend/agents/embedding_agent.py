@@ -114,7 +114,7 @@ class EmbeddingAgent:
             combined_text = "\n".join(context_parts)
             prepared_text = self._prepare_text(combined_text)
             
-            logger.info(f"Generating resume embedding for: {resume_data.get('candidate_name', 'Unknown')}")
+            self.logger.info(f"Generating resume embedding for: {resume_data.get('candidate_name', 'Unknown')}")
             
             # Generate embedding
             result = self.client.models.embed_content(
@@ -125,14 +125,14 @@ class EmbeddingAgent:
             embedding = result.embeddings[0].values
             
             if len(embedding) != self.dimension:
-                logger.error(f"Unexpected embedding dimension: {len(embedding)}")
+                self.logger.error(f"Unexpected embedding dimension: {len(embedding)}")
                 return None
             
-            logger.info(f"Successfully generated resume embedding (dim={len(embedding)})")
+            self.logger.info(f"Successfully generated resume embedding (dim={len(embedding)})")
             return embedding
             
         except Exception as e:
-            logger.error(f"Error generating resume embedding: {e}")
+            self.logger.error(f"Error generating resume embedding: {e}")
             return None
 
     async def embed_batch_resumes(
@@ -151,7 +151,7 @@ class EmbeddingAgent:
         results = []
         
         for idx, resume_data in enumerate(resume_data_list):
-            logger.info(f"Embedding resume {idx + 1}/{len(resume_data_list)}")
+            self.logger.info(f"Embedding resume {idx + 1}/{len(resume_data_list)}")
             
             embedding = await self.embed_resume(resume_data)
             
@@ -161,9 +161,9 @@ class EmbeddingAgent:
                     "embedding": embedding
                 })
             else:
-                logger.warning(f"Failed to generate embedding for resume: {resume_data.get('candidate_name', 'Unknown')}")
+                self.logger.warning(f"Failed to generate embedding for resume: {resume_data.get('candidate_name', 'Unknown')}")
         
-        logger.info(f"Successfully generated {len(results)}/{len(resume_data_list)} resume embeddings")
+        self.logger.info(f"Successfully generated {len(results)}/{len(resume_data_list)} resume embeddings")
         return results
 
     async def embed_text(self, text: str, task_type: str = "retrieval_document") -> Optional[List[float]]:
@@ -188,11 +188,11 @@ class EmbeddingAgent:
             embedding = result.embeddings[0].values
             
             if len(embedding) != self.dimension:
-                logger.error(f"Unexpected embedding dimension: {len(embedding)}")
+                self.logger.error(f"Unexpected embedding dimension: {len(embedding)}")
                 return None
             
             return embedding
             
         except Exception as e:
-            logger.error(f"Error generating text embedding: {e}")
+            self.logger.error(f"Error generating text embedding: {e}")
             return None

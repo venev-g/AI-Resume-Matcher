@@ -71,7 +71,6 @@ class JDExtractorAgent:
             except Exception as e:
                 if "rate" in str(e).lower() or "quota" in str(e).lower():
                     # Exponential backoff for rate limit errors
-                    import asyncio
                     await asyncio.sleep(2 ** attempt)
                     self.logger.warning(f"Rate limit hit, retry {attempt + 1}/{self.max_retries}")
                 else:
