@@ -18,6 +18,7 @@ pinecone-client
 pymongo
 motor
 pymongo[srv]
+pinecone
 
 # PDF Processing
 unstructured[pdf]
