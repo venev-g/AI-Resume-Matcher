@@ -7,8 +7,11 @@ import os
 import re
 from typing import Dict, Any, Optional
 from google import genai
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
+
+load_dotenv()
 
 
 class JDExtractorAgent:
