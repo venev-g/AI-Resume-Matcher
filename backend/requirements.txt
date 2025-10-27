@@ -17,6 +17,7 @@ openai
 pinecone-client
 pymongo
 motor
+pymongo[srv]
 
 # PDF Processing
 unstructured[pdf]
