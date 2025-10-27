@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from typing import Dict, Any, List, Optional
-import google.generativeai as genai
+from google import genai
 
 logger = logging.getLogger(__name__)
 
