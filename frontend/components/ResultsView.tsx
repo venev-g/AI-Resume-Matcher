@@ -2,13 +2,21 @@
 
 import { ResultsViewProps, ResumeMatch } from '@/types';
 
-export default function ResultsView({ results }: ResultsViewProps) {
+export default function ResultsView({ results, mode }: ResultsViewProps) {
   if (!results) {
     return (
       <div className="bg-gray-50 rounded-lg shadow-md p-6 flex items-center justify-center min-h-[400px]">
-        <p className="text-gray-500 text-lg">
-          No results yet. Upload a job description and resumes to get started.
-        </p>
+        <div className="text-center">
+          <p className="text-gray-500 text-lg mb-2">
+            {mode === 'upload' 
+              ? 'No results yet. Upload a job description and resumes to get started.'
+              : 'No results yet. Enter a job description to search the database.'
+            }
+          </p>
+          <p className="text-gray-400 text-sm">
+            {mode === 'search' && 'Make sure you have stored resumes in the database first.'}
+          </p>
+        </div>
       </div>
     );
   }

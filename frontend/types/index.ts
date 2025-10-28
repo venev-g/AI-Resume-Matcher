@@ -32,9 +32,22 @@ export interface MatchResponse {
 
 export interface UploadSectionProps {
   onSubmit: (jdText: string, files: File[]) => Promise<void>;
+  onDatabaseSearch: (jdText: string, minMatchScore: number) => Promise<void>;
+  onStoreResumes: (files: File[]) => Promise<void>;
   loading: boolean;
+  mode: 'upload' | 'search';
+  onModeChange: (mode: 'upload' | 'search') => void;
 }
 
 export interface ResultsViewProps {
   results: MatchResponse | null;
+  mode: 'upload' | 'search';
+}
+
+export interface StorageResponse {
+  success: boolean;
+  total_files: number;
+  stored_count: number;
+  failed_count: number;
+  message: string;
 }
