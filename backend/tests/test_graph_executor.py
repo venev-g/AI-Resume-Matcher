@@ -175,9 +175,29 @@ class TestGraphExecutor:
     @pytest.mark.asyncio
     async def test_store_resumes_partial_failure(self, executor, sample_pdf_path):
         """Test storing resumes with some failures."""
-        executor.pinecone.store_resume_embedding = AsyncMock(
-            side_effect=[True, False, True]
-        )
+        # Mock to return success, then failure, then success
+        call_count = 0
+        async def mock_store(resume_id, embedding, metadata):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                return False
+            return True
+        
+        executor.pinecone.store_resume_embedding = AsyncMock(side_effect=mock_store)
+        
+        # Mock 3 resumes
+        executor.resume_analyzer.analyze_batch = AsyncMock(return_value=[
+            {"resume_id": "1"},
+            {"resume_id": "2"},
+            {"resume_id": "3"}
+        ])
+        
+        executor.embedding_agent.embed_batch_resumes = AsyncMock(return_value=[
+            {"resume_data": {"resume_id": "1"}, "embedding": [0.1] * 768},
+            {"resume_data": {"resume_id": "2"}, "embedding": [0.1] * 768},
+            {"resume_data": {"resume_id": "3"}, "embedding": [0.1] * 768}
+        ])
         
         result = await executor.store_resumes([sample_pdf_path] * 3)
         
