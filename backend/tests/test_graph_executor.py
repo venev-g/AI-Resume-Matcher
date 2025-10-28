@@ -177,7 +177,7 @@ class TestGraphExecutor:
         """Test storing resumes with some failures."""
         # Mock to return success, then failure, then success
         call_count = 0
-        async def mock_store(resume_id, embedding, metadata):
+        async def mock_store(resume_id, embedding, resume_data):
             nonlocal call_count
             call_count += 1
             if call_count == 2:
@@ -188,9 +188,9 @@ class TestGraphExecutor:
         
         # Mock 3 resumes
         executor.resume_analyzer.analyze_batch = AsyncMock(return_value=[
-            {"resume_id": "1"},
-            {"resume_id": "2"},
-            {"resume_id": "3"}
+            {"resume_id": "1", "candidate_name": "User1"},
+            {"resume_id": "2", "candidate_name": "User2"},
+            {"resume_id": "3", "candidate_name": "User3"}
         ])
         
         executor.embedding_agent.embed_batch_resumes = AsyncMock(return_value=[

@@ -97,6 +97,71 @@ def sample_resume_data_potential() -> Dict[str, Any]:
 
 
 @pytest.fixture
+def sample_high_match_resume() -> Dict[str, Any]:
+    """Sample resume data with high match (85%+) for testing."""
+    return {
+        "resume_id": "resume_test_high",
+        "candidate_name": "John Doe",
+        "email": "john.doe@example.com",
+        "phone": "+1-555-0100",
+        "skills": [
+            "Python", "FastAPI", "PostgreSQL", "Docker", 
+            "REST API", "Git", "Linux", "AWS"
+        ],
+        "experience_years": 6.0,
+        "work_history": [
+            "Senior Software Engineer at Tech Corp (2020-2024)",
+            "Software Developer at StartupXYZ (2018-2020)"
+        ],
+        "education": [
+            "B.S. Computer Science, MIT (2018)",
+            "Online Courses: Docker, Kubernetes"
+        ],
+        "certifications": ["AWS Certified Developer"]
+    }
+
+
+@pytest.fixture
+def sample_low_match_resume() -> Dict[str, Any]:
+    """Sample resume data with low match (<65%) for testing."""
+    return {
+        "resume_id": "resume_test_low",
+        "candidate_name": "Jane Smith",
+        "email": "jane.smith@example.com",
+        "skills": [
+            "Java", "Spring Boot", "Oracle", "Jenkins"
+        ],
+        "experience_years": 3.0,
+        "work_history": [
+            "Java Developer at Enterprise Inc (2021-2024)"
+        ],
+        "education": [
+            "B.S. Information Systems (2021)"
+        ]
+    }
+
+
+@pytest.fixture
+def sample_potential_match_resume() -> Dict[str, Any]:
+    """Sample resume data for potential match (65-79%) testing."""
+    return {
+        "resume_id": "resume_test_potential",
+        "candidate_name": "Alice Johnson",
+        "email": "alice.j@example.com",
+        "skills": [
+            "Python", "Flask", "PostgreSQL", "Git", "Linux"
+        ],
+        "experience_years": 4.0,
+        "work_history": [
+            "Python Developer at WebCo (2020-2024)"
+        ],
+        "education": [
+            "B.S. Computer Engineering (2020)"
+        ]
+    }
+
+
+@pytest.fixture
 def sample_embedding() -> List[float]:
     """Sample 768-dimensional embedding vector."""
     import random
