@@ -10,6 +10,7 @@ from agents.embedding_agent import EmbeddingAgent
 from agents.match_evaluator import MatchEvaluatorAgent
 from agents.skill_recommender import SkillRecommenderAgent
 from services.mongodb_service import MongoDBService
+from services.pinecone_service import PineconeService
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,9 @@ class GraphExecutor:
         
         # Initialize MongoDB service
         self.mongodb = MongoDBService()
+        
+        # Initialize Pinecone service
+        self.pinecone = PineconeService()
         
         # Build workflow graph
         self.workflow = self._build_workflow()
@@ -371,3 +375,234 @@ class GraphExecutor:
                 await self.mongodb.close()
             except Exception:
                 pass
+
+    async def search_database(
+        self,
+        jd_text: str,
+        min_match_score: float = 80.0,
+        top_k: int = 100
+    ) -> Dict[str, Any]:
+        """
+        Search stored resumes in database by job description.
+        
+        This method performs semantic search against previously stored resumes,
+        evaluating them against the JD with the same matching algorithm.
+        Only returns resumes with match scores >= min_match_score.
+        
+        Args:
+            jd_text: Job description text
+            min_match_score: Minimum match score threshold (0-100)
+            top_k: Maximum number of resumes to retrieve from database
+            
+        Returns:
+            Final output with matched resumes and statistics
+        """
+        try:
+            logger.info(f"Starting database search: min_score={min_match_score}%, top_k={top_k}")
+            
+            # Step 1: Extract JD data
+            jd_data = await self.jd_extractor.extract_jd_data(jd_text)
+            if not jd_data:
+                logger.error("Failed to extract JD data")
+                return {
+                    "matches": [],
+                    "total_resumes": 0,
+                    "high_matches": 0,
+                    "potential_matches": 0,
+                    "error": "JD extraction failed"
+                }
+            
+            # Step 2: Generate JD embedding
+            jd_embedding = await self.embedding_agent.embed_jd(jd_data)
+            if not jd_embedding:
+                logger.error("Failed to generate JD embedding")
+                return {
+                    "matches": [],
+                    "total_resumes": 0,
+                    "high_matches": 0,
+                    "potential_matches": 0,
+                    "error": "JD embedding generation failed"
+                }
+            
+            # Step 3: Search Pinecone for similar resumes
+            # Convert match percentage to similarity score (0-1 range)
+            min_similarity = 0.5  # Start with broader search
+            
+            stored_resumes = await self.pinecone.search_by_jd(
+                jd_embedding=jd_embedding,
+                top_k=top_k,
+                min_similarity=min_similarity
+            )
+            
+            if not stored_resumes:
+                logger.info("No resumes found in database")
+                return {
+                    "matches": [],
+                    "total_resumes": 0,
+                    "high_matches": 0,
+                    "potential_matches": 0
+                }
+            
+            logger.info(f"Retrieved {len(stored_resumes)} resumes from database")
+            
+            # Step 4: Evaluate matches
+            # Create resume_embeddings format for evaluator
+            resume_embeddings = []
+            for resume in stored_resumes:
+                # Generate embedding for complete evaluation
+                resume_text = await self.embedding_agent._create_resume_text(resume)
+                resume_embedding = await self.embedding_agent.embed_text(resume_text)
+                
+                resume_embeddings.append({
+                    "resume_data": resume,
+                    "embedding": resume_embedding
+                })
+            
+            match_results = await self.match_evaluator.evaluate_batch(
+                resume_embeddings,
+                jd_data,
+                jd_embedding
+            )
+            
+            # Step 5: Filter by minimum match score
+            filtered_matches = [
+                match for match in match_results
+                if match.get("match_score", 0) >= min_match_score
+            ]
+            
+            logger.info(f"Filtered to {len(filtered_matches)} matches >= {min_match_score}%")
+            
+            # Step 6: Generate skill recommendations for potential candidates
+            resume_data_dict = {
+                resume.get("resume_id"): resume
+                for resume in stored_resumes
+            }
+            
+            updated_matches = await self.skill_recommender.recommend_batch(
+                filtered_matches,
+                jd_data,
+                resume_data_dict
+            )
+            
+            # Step 7: Calculate statistics
+            total_resumes = len(filtered_matches)
+            high_matches = sum(1 for m in updated_matches if m.get("match_score", 0) >= 80)
+            potential_matches = sum(
+                1 for m in updated_matches if 65 <= m.get("match_score", 0) < 80
+            )
+            
+            final_output = {
+                "matches": updated_matches,
+                "total_resumes": total_resumes,
+                "high_matches": high_matches,
+                "potential_matches": potential_matches
+            }
+            
+            # Step 8: Store search results in MongoDB
+            try:
+                await self.mongodb.connect()
+                await self.mongodb.store_match_result(
+                    jd_text=jd_text,
+                    jd_data=jd_data,
+                    matches=updated_matches
+                )
+                logger.info("Successfully stored database search results in MongoDB")
+            except Exception as e:
+                logger.error(f"Failed to store in MongoDB: {e}")
+            finally:
+                await self.mongodb.close()
+            
+            logger.info(
+                f"Database search completed: {total_resumes} matches, "
+                f"{high_matches} high matches, {potential_matches} potential"
+            )
+            
+            return final_output
+            
+        except Exception as e:
+            logger.error(f"Database search failed: {e}", exc_info=True)
+            return {
+                "matches": [],
+                "total_resumes": 0,
+                "high_matches": 0,
+                "potential_matches": 0,
+                "error": str(e)
+            }
+
+    async def store_resumes(
+        self,
+        resume_files: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Store resumes in Pinecone database for future searches.
+        
+        Processes resume PDFs, generates embeddings, and stores them
+        in Pinecone with metadata for semantic search.
+        
+        Args:
+            resume_files: List of resume file paths
+            
+        Returns:
+            Dictionary with storage statistics
+        """
+        try:
+            logger.info(f"Starting resume storage for {len(resume_files)} files")
+            
+            # Step 1: Analyze resumes
+            resume_data_list = await self.resume_analyzer.analyze_batch(resume_files)
+            
+            if not resume_data_list:
+                logger.warning("No resumes were successfully analyzed")
+                return {
+                    "stored_count": 0,
+                    "failed_count": len(resume_files)
+                }
+            
+            logger.info(f"Successfully analyzed {len(resume_data_list)} resumes")
+            
+            # Step 2: Generate embeddings
+            resume_embeddings = await self.embedding_agent.embed_batch_resumes(
+                resume_data_list
+            )
+            
+            # Step 3: Store in Pinecone
+            stored_count = 0
+            failed_count = 0
+            
+            for item in resume_embeddings:
+                resume_data = item.get("resume_data", {})
+                embedding = item.get("embedding", [])
+                resume_id = resume_data.get("resume_id", "unknown")
+                
+                if not embedding:
+                    logger.warning(f"Skipping {resume_id}: No embedding generated")
+                    failed_count += 1
+                    continue
+                
+                success = await self.pinecone.store_resume_embedding(
+                    resume_id=resume_id,
+                    embedding=embedding,
+                    resume_data=resume_data
+                )
+                
+                if success:
+                    stored_count += 1
+                else:
+                    failed_count += 1
+            
+            logger.info(
+                f"Storage completed: {stored_count} stored, {failed_count} failed"
+            )
+            
+            return {
+                "stored_count": stored_count,
+                "failed_count": failed_count
+            }
+            
+        except Exception as e:
+            logger.error(f"Resume storage failed: {e}", exc_info=True)
+            return {
+                "stored_count": 0,
+                "failed_count": len(resume_files),
+                "error": str(e)
+            }

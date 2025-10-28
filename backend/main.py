@@ -275,6 +275,181 @@ async def get_match_history(limit: int = 10, skip: int = 0):
         )
 
 
+@app.post("/api/search-database")
+async def search_database(
+    jd_text: str = Form(..., description="Job description text"),
+    min_match_score: float = Form(80.0, description="Minimum match score threshold (0-100)"),
+    top_k: int = Form(100, description="Maximum number of results to return")
+):
+    """
+    Search stored resumes in database by job description.
+    
+    This endpoint performs semantic search against resumes previously stored
+    in Pinecone, evaluating them against the provided job description using
+    the same 80%+ matching algorithm.
+    
+    Args:
+        jd_text: Job description text
+        min_match_score: Minimum match score to include in results (default: 80.0)
+        top_k: Maximum number of resumes to retrieve from database (default: 100)
+        
+    Returns:
+        MatchResponse with resumes matching >= 80% threshold
+        
+    Raises:
+        HTTPException: If validation fails or processing errors occur
+    """
+    try:
+        # Validate inputs
+        if not jd_text or not jd_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Job description text cannot be empty"
+            )
+        
+        if min_match_score < 0 or min_match_score > 100:
+            raise HTTPException(
+                status_code=400,
+                detail="min_match_score must be between 0 and 100"
+            )
+        
+        if top_k < 1 or top_k > 1000:
+            raise HTTPException(
+                status_code=400,
+                detail="top_k must be between 1 and 1000"
+            )
+        
+        logger.info(f"Database search request: min_score={min_match_score}%, top_k={top_k}")
+        
+        # Execute database search workflow
+        result = await graph_executor.search_database(
+            jd_text=jd_text,
+            min_match_score=min_match_score,
+            top_k=top_k
+        )
+        
+        logger.info(f"Database search completed: {result.get('total_resumes', 0)} resumes evaluated")
+        
+        return MatchResponse(**result)
+        
+    except HTTPException:
+        raise
+        
+    except Exception as e:
+        logger.error(f"Error processing database search: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+
+@app.post("/api/store-resumes")
+async def store_resumes(
+    files: List[UploadFile] = File(..., description="Resume PDF files to store")
+):
+    """
+    Store resumes in database for future matching.
+    
+    This endpoint processes and stores resume embeddings in Pinecone,
+    allowing them to be searched later using the search-database endpoint.
+    
+    Args:
+        files: List of resume PDF files
+        
+    Returns:
+        Storage status and statistics
+        
+    Raises:
+        HTTPException: If validation fails or storage errors occur
+    """
+    temp_files = []
+    
+    try:
+        # Validate inputs
+        if not files:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one resume file is required"
+            )
+        
+        if len(files) > 100:
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum 100 resume files allowed per request"
+            )
+        
+        logger.info(f"Received storage request for {len(files)} resume files")
+        
+        # Save uploaded files to temporary directory
+        temp_dir = tempfile.mkdtemp()
+        
+        for idx, file in enumerate(files):
+            # Validate file type
+            if not file.filename.endswith('.pdf'):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Only PDF files are supported. Invalid file: {file.filename}"
+                )
+            
+            # Validate file size (max 10MB)
+            content = await file.read()
+            if len(content) > 10 * 1024 * 1024:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File too large (max 10MB): {file.filename}"
+                )
+            
+            # Save to temp file
+            temp_file_path = os.path.join(temp_dir, f"resume_{idx + 1}.pdf")
+            with open(temp_file_path, "wb") as f:
+                f.write(content)
+            
+            temp_files.append(temp_file_path)
+            logger.info(f"Saved temp file: {temp_file_path}")
+        
+        # Execute storage workflow
+        logger.info("Starting resume storage workflow")
+        result = await graph_executor.store_resumes(resume_files=temp_files)
+        
+        logger.info(f"Storage completed: {result.get('stored_count', 0)} resumes stored")
+        
+        return {
+            "success": True,
+            "total_files": len(files),
+            "stored_count": result.get("stored_count", 0),
+            "failed_count": result.get("failed_count", 0),
+            "message": f"Successfully stored {result.get('stored_count', 0)} resumes"
+        }
+        
+    except HTTPException:
+        raise
+        
+    except Exception as e:
+        logger.error(f"Error storing resumes: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+        
+    finally:
+        # Cleanup temporary files
+        for temp_file in temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file {temp_file}: {e}")
+        
+        # Cleanup temp directory
+        if temp_files:
+            temp_dir = os.path.dirname(temp_files[0])
+            try:
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+            except Exception as e:
+                logger.warning(f"Failed to delete temp directory {temp_dir}: {e}")
+
+
 if __name__ == "__main__":
     import uvicorn
     

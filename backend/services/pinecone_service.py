@@ -124,7 +124,8 @@ class PineconeService:
         self,
         embedding: List[float],
         top_k: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None
+        filter_dict: Optional[Dict[str, Any]] = None,
+        min_score: float = 0.0
     ) -> List[Dict[str, Any]]:
         """
         Query for similar resumes based on embedding.
@@ -133,6 +134,7 @@ class PineconeService:
             embedding: Query embedding vector
             top_k: Number of top matches to return
             filter_dict: Optional metadata filter
+            min_score: Minimum similarity score threshold (0-1)
             
         Returns:
             List of matching results with scores and metadata
@@ -155,17 +157,73 @@ class PineconeService:
             
             matches = []
             for match in results.matches:
-                matches.append({
-                    "id": match.id,
-                    "score": match.score,
-                    "metadata": match.metadata
-                })
+                # Filter by minimum score
+                if match.score >= min_score:
+                    matches.append({
+                        "id": match.id,
+                        "score": match.score,
+                        "metadata": match.metadata
+                    })
             
-            logger.info(f"Found {len(matches)} similar resumes")
+            logger.info(f"Found {len(matches)} similar resumes (min_score={min_score})")
             return matches
             
         except Exception as e:
             logger.error(f"Failed to query similar resumes: {e}")
+            return []
+    
+    async def search_by_jd(
+        self,
+        jd_embedding: List[float],
+        top_k: int = 100,
+        min_similarity: float = 0.5
+    ) -> List[Dict[str, Any]]:
+        """
+        Search stored resumes that match a job description.
+        
+        This method performs semantic search in Pinecone to find resumes
+        that are most similar to the provided JD embedding.
+        
+        Args:
+            jd_embedding: Job description embedding vector (768-dim)
+            top_k: Maximum number of results to return
+            min_similarity: Minimum cosine similarity threshold (0-1)
+            
+        Returns:
+            List of matching resumes with metadata and similarity scores
+        """
+        try:
+            logger.info(f"Searching database for similar resumes (top_k={top_k}, min_score={min_similarity})")
+            
+            matches = await self.query_similar(
+                embedding=jd_embedding,
+                top_k=top_k,
+                min_score=min_similarity
+            )
+            
+            # Transform Pinecone results to resume data format
+            resume_results = []
+            for match in matches:
+                metadata = match.get("metadata", {})
+                
+                resume_data = {
+                    "resume_id": match["id"],
+                    "candidate_name": metadata.get("candidate_name"),
+                    "email": metadata.get("email"),
+                    "skills": metadata.get("skills", []),
+                    "experience_years": metadata.get("experience_years", 0.0),
+                    "work_history": metadata.get("work_history", []),
+                    "education": metadata.get("education", []),
+                    "similarity_score": match["score"]
+                }
+                
+                resume_results.append(resume_data)
+            
+            logger.info(f"Retrieved {len(resume_results)} resumes from database")
+            return resume_results
+            
+        except Exception as e:
+            logger.error(f"Database search failed: {e}")
             return []
 
     async def delete_resume(self, resume_id: str) -> bool:
@@ -205,3 +263,56 @@ class PineconeService:
         except Exception as e:
             logger.error(f"Failed to get index stats: {e}")
             return {}
+    
+    async def store_resume_embedding(
+        self,
+        resume_id: str,
+        embedding: List[float],
+        resume_data: Dict[str, Any]
+    ) -> bool:
+        """
+        Store resume embedding in Pinecone for future searches.
+        
+        This method stores the resume embedding along with comprehensive
+        metadata that can be retrieved during similarity searches.
+        
+        Args:
+            resume_id: Unique identifier for the resume
+            embedding: 768-dimensional embedding vector
+            resume_data: Complete resume data including:
+                - candidate_name
+                - email
+                - skills
+                - experience_years
+                - work_history
+                - education
+                
+        Returns:
+            True if storage successful, False otherwise
+        """
+        try:
+            # Prepare metadata - only store serializable data
+            metadata = {
+                "candidate_name": resume_data.get("candidate_name", ""),
+                "email": resume_data.get("email", ""),
+                "skills": resume_data.get("skills", [])[:50],  # Limit array size
+                "experience_years": float(resume_data.get("experience_years", 0.0)),
+                "work_history": resume_data.get("work_history", [])[:10],  # Limit array size
+                "education": resume_data.get("education", [])[:5],  # Limit array size
+            }
+            
+            # Store in Pinecone
+            success = await self.upsert_resume(
+                resume_id=resume_id,
+                embedding=embedding,
+                metadata=metadata
+            )
+            
+            if success:
+                logger.info(f"Successfully stored resume in database: {resume_id}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Failed to store resume embedding: {e}")
+            return False

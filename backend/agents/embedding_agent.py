@@ -196,3 +196,26 @@ class EmbeddingAgent:
         except Exception as e:
             self.logger.error(f"Error generating text embedding: {e}")
             return None
+
+    async def _create_resume_text(self, resume_data: Dict[str, Any]) -> str:
+        """
+        Create text representation of resume data for embedding.
+        
+        This is a helper method to maintain consistency in how resume
+        data is converted to text for embedding generation.
+        
+        Args:
+            resume_data: Resume data dictionary
+            
+        Returns:
+            Text representation of resume
+        """
+        context_parts = [
+            f"Candidate: {resume_data.get('candidate_name', 'Unknown')}",
+            f"Skills: {', '.join(resume_data.get('skills', []))}",
+            f"Experience: {resume_data.get('experience_years', 0)} years",
+            f"Work History: {'; '.join(resume_data.get('work_history', []))}",
+            f"Education: {'; '.join(resume_data.get('education', []))}"
+        ]
+        
+        return "\n".join(context_parts)

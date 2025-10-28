@@ -62,11 +62,8 @@ async def test_graph_workflow():
             resume_files = list(test_resumes_dir.glob("*.pdf"))
             print(f"\n   Found {len(resume_files)} resume(s) to process")
         
-        # Prepare inputs
-        inputs = {
-            "jd_text": sample_jd,
-            "resume_files": [str(f) for f in resume_files]
-        }
+        # Convert Path objects to strings
+        resume_file_paths = [str(f) for f in resume_files]
         
         print("\n2. Executing LangGraph workflow...")
         print("   This will run through all 6 nodes:")
@@ -77,21 +74,18 @@ async def test_graph_workflow():
         print("   → Recommend Skills")
         print("   → Finalize Output")
         
-        # Execute workflow
-        result = await executor.execute(inputs)
+        # Execute workflow with correct signature
+        result = await executor.execute(sample_jd, resume_file_paths)
         
-        if result and result.get("status") == "success":
+        if result and not result.get("error"):
             print("\n✓ WORKFLOW COMPLETED SUCCESSFULLY!")
             print("\n3. Results Summary:")
-            print(f"   Job Title: {result.get('jd_data', {}).get('job_title')}")
-            print(f"   Required Skills: {len(result.get('jd_data', {}).get('required_skills', []))} skills")
             print(f"   Resumes Processed: {result.get('total_resumes', 0)}")
             print(f"   High Matches (≥80%): {result.get('high_matches', 0)}")
             print(f"   Potential Matches (65-79%): {result.get('potential_matches', 0)}")
-            print(f"   Execution Time: {result.get('execution_time', 'N/A')}")
             
             # Show top matches
-            matches = result.get('match_results', [])
+            matches = result.get('matches', [])
             if matches:
                 print("\n4. Top Matches:")
                 for i, match in enumerate(matches[:3], 1):
@@ -108,7 +102,7 @@ async def test_graph_workflow():
             
         else:
             print("\n✗ WORKFLOW FAILED")
-            error_msg = result.get("error_message", "Unknown error") if result else "No result returned"
+            error_msg = result.get("error", "Unknown error") if result else "No result returned"
             print(f"   Error: {error_msg}")
             return False
             
