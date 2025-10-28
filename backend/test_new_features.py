@@ -11,7 +11,6 @@ This script tests:
 import asyncio
 import os
 import sys
-from typing import List, Dict, Any
 
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
