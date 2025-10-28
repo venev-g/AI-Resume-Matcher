@@ -30,3 +30,10 @@ scikit-learn
 
 # Utilities
 python-dotenv
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+httpx
