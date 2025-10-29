@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -15,9 +15,14 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3001"
     ]
     
-    # Database
-    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+    # MongoDB Atlas Configuration
+    MONGODB_URL: str = os.getenv("MONGODB_URL", "")
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "resume_matcher")
+    
+    # MongoDB Atlas Components (alternative to full connection string)
+    MONGODB_USERNAME: Optional[str] = os.getenv("MONGODB_USERNAME")
+    MONGODB_PASSWORD: Optional[str] = os.getenv("MONGODB_PASSWORD")
+    MONGODB_CLUSTER_URL: Optional[str] = os.getenv("MONGODB_CLUSTER_URL")
     
     # LLM Configuration
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
@@ -36,6 +41,12 @@ class Settings(BaseSettings):
     # OCR Configuration
     ENABLE_OCR: bool = True
     OCR_ENGINE: str = "easyocr"
+    
+    # Database Connection Options
+    DB_CONNECTION_TIMEOUT: int = 10000  # 10 seconds
+    DB_SERVER_SELECTION_TIMEOUT: int = 5000  # 5 seconds
+    DB_MAX_POOL_SIZE: int = 10
+    DB_MIN_POOL_SIZE: int = 1
     
     class Config:
         env_file = ".env"
