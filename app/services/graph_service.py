@@ -177,8 +177,8 @@ class GraphService:
             technical_match=technical_match,
             non_technical_match=non_technical_match,
             recommendation=recommendation,
-            # processed_at=datetime.utcnow()
-            processed_at=datetime.now()
+            processed_at=datetime.utcnow()
+            # processed_at=datetime.now()
         )
 
 # Global service instance
