@@ -11,6 +11,8 @@ pymongo
 motor
 python-dotenv
 google-generativeai
+google-genai
+aiohttp
 aiofiles
 pandas
 numpy

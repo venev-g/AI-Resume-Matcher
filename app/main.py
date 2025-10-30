@@ -110,6 +110,28 @@ async def health_check():
             }
         )
 
+# For testing LLM services
+@app.get("/test-llm")
+async def test_llm_providers():
+    """Test all configured LLM providers"""
+    from app.services.llm_service import test_all_providers
+    
+    try:
+        results = await test_all_providers()
+        return {
+            "status": "completed",
+            "providers_tested": len(results),
+            "results": results
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "error": str(e)
+            }
+        )
+
 # Include routers
 app.include_router(upload.router, prefix="/api/v1/upload", tags=["upload"])
 app.include_router(matching.router, prefix="/api/v1/matching", tags=["matching"])
