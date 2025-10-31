@@ -1,12 +1,12 @@
 import sys
 import asyncio
 from pathlib import Path
-from app.core.database import database_manager
 
 # Add the project root directory to Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from app.core.database import database_manager
 async def test_connection():
     try:
         await database_manager.connect()
