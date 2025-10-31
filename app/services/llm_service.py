@@ -28,7 +28,7 @@ class LLMService:
 
         # Model configurations
         self.gemini_model = "gemini-2.5-flash"  # Latest stable version
-        self.openrouter_model = "openai/gpt-oss-20b"  # GPT-OSS 20B model
+        self.openrouter_model = "openai/gpt-oss-20b:free"  # GPT-OSS 20B model
 
         # Initialize clients
         self._initialize_gemini()
@@ -313,7 +313,7 @@ class LLMService:
         elif provider == "openrouter":
             return [
                 {
-                    "id": "openai/gpt-oss-20b",
+                    "id": "openai/gpt-oss-20b:free",
                     "name": "GPT-OSS 20B",
                     "description": "Open-source 20B parameter model by OpenAI",
                     "context_window": 128000,  # 128k tokens
