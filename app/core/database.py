@@ -43,8 +43,8 @@ class DatabaseManager:
                 retryWrites=True,              # Enable retryable writes
                 retryReads=True,               # Enable retryable reads
                 w="majority",                  # Write concern: majority
-                readPreference="primary",      # Read from primary
-                readConcern="majority"         # Read concern: majority
+                readpreference="primary",      # Read from primary
+                readconcernlevel="majority"         # Read concern: majority
             )
             
             # Get database reference
