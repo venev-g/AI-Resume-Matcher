@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # LLM Configuration
     GEMINI_API_KEY: str = Field(default="", description="Gemini API key")
     OPENROUTER_API_KEY: str = Field(default="", description="OpenRouter API key")
-    DEFAULT_LLM_PROVIDER: str = Field(default="gemini", description="Default LLM provider")
+    DEFAULT_LLM_PROVIDER: str = Field(default="", description="Default LLM provider")
     
     # Model Configurations
     GEMINI_MODEL: str = Field(default="gemini-2.5-flash", description="Gemini model name")

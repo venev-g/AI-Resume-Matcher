@@ -142,9 +142,14 @@ class LLMService:
                     candidate = response.candidates[0]
                     if hasattr(candidate, "content") and candidate.content:
                         text_content = ""
-                        for part in candidate.content.parts:
-                            if hasattr(part, "text"):
-                                text_content += part.text
+                        # Safely iterate over parts - check if parts exists and is not None
+                        if (
+                            hasattr(candidate.content, "parts")
+                            and candidate.content.parts
+                        ):
+                            for part in candidate.content.parts:
+                                if part and hasattr(part, "text") and part.text:
+                                    text_content += part.text
                         if text_content:
                             logger.info("Gemini API call successful")
                             return text_content.strip()
